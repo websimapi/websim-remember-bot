@@ -177,25 +177,25 @@ function updateRecentMemories() {
     });
 }
 
-function getCommandAndContent(speech) {
-    speech = speech.toLowerCase().trim();
+function processCommand(text) {
+    text = text.toLowerCase().trim();
     
     // Check store commands
     for (let cmd of STORE_COMMANDS) {
-        if (speech.startsWith(cmd + ' ')) {
+        if (text.startsWith(cmd)) {
             return {
                 type: 'store',
-                content: speech.slice(cmd.length + 1)
+                content: text.slice(cmd.length).trim()
             };
         }
     }
     
     // Check recall commands
     for (let cmd of RECALL_COMMANDS) {
-        if (speech.startsWith(cmd + ' ')) {
+        if (text.startsWith(cmd)) {
             return {
                 type: 'recall',
-                content: speech.slice(cmd.length + 1)
+                content: text.slice(cmd.length).trim()
             };
         }
     }
@@ -207,7 +207,7 @@ function handleSpeech(event) {
     const speech = event.results[event.results.length - 1][0].transcript.trim();
     console.log('Speech detected:', speech);
 
-    const command = getCommandAndContent(speech);
+    const command = processCommand(speech);
     
     if (!command) {
         speak("I didn't understand that command. Please check the command list.");
@@ -228,11 +228,14 @@ function handleSpeech(event) {
             statusDiv.textContent = response;
         } else {
             const memories = JSON.parse(localStorage.getItem('memories') || '[]');
-            const response = memories.length > 0 
-                ? "I couldn't find anything specific, but here are your recent memories."
-                : "I don't have any memories stored yet.";
-            speak(response);
-            statusDiv.textContent = response;
+            if (memories.length > 0) {
+                speak("I couldn't find anything specific, but here are your recent memories.");
+                statusDiv.textContent = "Showing recent memories...";
+            } else {
+                const response = "I don't have any memories stored yet.";
+                speak(response);
+                statusDiv.textContent = response;
+            }
         }
     }
 }
