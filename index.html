@@ -15,13 +15,27 @@
   }
 
   .container {
-    text-align: center;
+    display: flex;
+    gap: 2rem;
     padding: 2rem;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 15px;
     backdrop-filter: blur(10px);
-    max-width: 600px;
+    max-width: 1000px;
     width: 90%;
+  }
+
+  .main-content {
+    flex: 2;
+    text-align: center;
+  }
+
+  .command-list {
+    flex: 1;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    border-radius: 10px;
   }
 
   #toggleButton {
@@ -56,6 +70,17 @@
     overflow-y: auto;
   }
 
+  .command-item {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .command-title {
+    font-weight: bold;
+    color: #4CAF50;
+  }
+
   @keyframes pulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.05); }
@@ -70,11 +95,31 @@
 </head>
 <body>
   <div class="container">
-    <h1>Remember Bot</h1>
-    <button id="toggleButton">Start Listening</button>
-    <div id="status">Not listening...</div>
-    <div id="recentMemories">
-      <h3>Recent Memories:</h3>
+    <div class="main-content">
+      <h1>Remember Bot</h1>
+      <button id="toggleButton">Start Listening</button>
+      <div id="status">Not listening...</div>
+      <div id="recentMemories">
+        <h3>Recent Memories:</h3>
+      </div>
+    </div>
+    <div class="command-list">
+      <h2>Command List</h2>
+      <div class="command-item">
+        <div class="command-title">Store a Memory:</div>
+        "Remember..." or "Note..." or "Save..." or "Keep..." or "Store..."
+      </div>
+      <div class="command-item">
+        <div class="command-title">Recall a Memory:</div>
+        "Remind..." or "Recall..." or "Find..." or "Search..." or "Tell me about..." or "What about..."
+      </div>
+      <div class="command-item">
+        <div class="command-title">Examples:</div>
+        "Remember to buy milk"<br>
+        "Remind me about milk"<br>
+        "Save doctor appointment"<br>
+        "What about doctor"
+      </div>
     </div>
   </div>
 
@@ -86,7 +131,9 @@ const recentMemoriesDiv = document.getElementById('recentMemories');
 let recognition = null;
 let isListening = false;
 
-// Initialize speech recognition
+const STORE_COMMANDS = ['remember', 'note', 'save', 'keep', 'store'];
+const RECALL_COMMANDS = ['remind', 'recall', 'find', 'search', 'tell me about', 'what about'];
+
 function initializeSpeechRecognition() {
     recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.continuous = true;
@@ -94,7 +141,6 @@ function initializeSpeechRecognition() {
     recognition.lang = 'en-US';
 }
 
-// Initialize speech synthesis
 const synth = window.speechSynthesis;
 
 function speak(text) {
@@ -131,19 +177,50 @@ function updateRecentMemories() {
     });
 }
 
+function getCommandAndContent(speech) {
+    speech = speech.toLowerCase().trim();
+    
+    // Check store commands
+    for (let cmd of STORE_COMMANDS) {
+        if (speech.startsWith(cmd + ' ')) {
+            return {
+                type: 'store',
+                content: speech.slice(cmd.length + 1)
+            };
+        }
+    }
+    
+    // Check recall commands
+    for (let cmd of RECALL_COMMANDS) {
+        if (speech.startsWith(cmd + ' ')) {
+            return {
+                type: 'recall',
+                content: speech.slice(cmd.length + 1)
+            };
+        }
+    }
+    
+    return null;
+}
+
 function handleSpeech(event) {
     const speech = event.results[event.results.length - 1][0].transcript.trim();
     console.log('Speech detected:', speech);
 
-    if (speech.toLowerCase().startsWith('remember ')) {
-        const memory = speech.slice(9);
-        saveMemory(memory);
-        speak(`I'll remember that ${memory}`);
-        statusDiv.textContent = `Remembered: ${memory}`;
+    const command = getCommandAndContent(speech);
+    
+    if (!command) {
+        speak("I didn't understand that command. Please check the command list.");
+        return;
     }
-    else if (speech.toLowerCase().startsWith('remind ')) {
-        const query = speech.slice(7);
-        const results = searchMemories(query);
+
+    if (command.type === 'store') {
+        saveMemory(command.content);
+        speak(`I'll remember that ${command.content}`);
+        statusDiv.textContent = `Remembered: ${command.content}`;
+    }
+    else if (command.type === 'recall') {
+        const results = searchMemories(command.content);
         
         if (results.length > 0) {
             const response = `Here's what I found: ${results[0].text}`;
@@ -193,7 +270,6 @@ toggleButton.addEventListener('click', () => {
     }
 });
 
-// Initialize recent memories on page load
 updateRecentMemories();
 </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
