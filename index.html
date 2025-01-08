@@ -114,11 +114,16 @@
         "Remind..." or "Recall..." or "Find..." or "Search..." or "Tell me about..." or "What about..."
       </div>
       <div class="command-item">
+        <div class="command-title">List Memories:</div>
+        "List memories" or "Show all" or "Show recent"
+      </div>
+      <div class="command-item">
         <div class="command-title">Examples:</div>
         "Remember to buy milk"<br>
         "Remind me about milk"<br>
         "Save doctor appointment"<br>
-        "What about doctor"
+        "What about doctor"<br>
+        "List memories"
       </div>
     </div>
   </div>
@@ -134,8 +139,8 @@ let synth = null;
 
 const STORE_COMMANDS = ['remember', 'note', 'save', 'keep', 'store'];
 const RECALL_COMMANDS = ['remind', 'recall', 'find', 'search', 'tell me about', 'what about'];
+const LIST_COMMANDS = ['list memories', 'show all', 'show recent'];
 
-// Check for Speech Recognition support
 function checkSpeechRecognition() {
     if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
         statusDiv.textContent = 'Speech recognition not supported in this browser';
@@ -144,7 +149,6 @@ function checkSpeechRecognition() {
     return true;
 }
 
-// Check for Speech Synthesis support
 function checkSpeechSynthesis() {
     if (!('speechSynthesis' in window)) {
         statusDiv.textContent = 'Speech synthesis not supported in this browser';
@@ -153,7 +157,6 @@ function checkSpeechSynthesis() {
     return true;
 }
 
-// Initialize both speech recognition and synthesis
 async function initializeSpeech() {
     if (!checkSpeechRecognition() || !checkSpeechSynthesis()) {
         return;
@@ -161,7 +164,6 @@ async function initializeSpeech() {
 
     synth = window.speechSynthesis;
     
-    // Wait for voices to load
     if (synth.getVoices().length === 0) {
         await new Promise(resolve => {
             synth.onvoiceschanged = resolve;
@@ -173,7 +175,6 @@ async function initializeSpeech() {
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
-    // Enable button once everything is ready
     toggleButton.disabled = false;
     toggleButton.textContent = 'Start Listening';
     statusDiv.textContent = 'Ready to listen!';
@@ -181,10 +182,7 @@ async function initializeSpeech() {
 
 function speak(text) {
     if (!synth) return;
-    
-    // Cancel any ongoing speech
     synth.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
     synth.speak(utterance);
 }
@@ -193,17 +191,32 @@ function saveMemory(memory) {
     let memories = JSON.parse(localStorage.getItem('memories') || '[]');
     memories.unshift({
         text: memory,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        tags: extractKeywords(memory)
     });
     localStorage.setItem('memories', JSON.stringify(memories));
     updateRecentMemories();
 }
 
+function extractKeywords(text) {
+    return text.toLowerCase()
+        .split(' ')
+        .filter(word => word.length > 3)
+        .map(word => word.replace(/[^a-z0-9]/g, ''));
+}
+
 function searchMemories(query) {
     let memories = JSON.parse(localStorage.getItem('memories') || '[]');
-    return memories.filter(memory => 
-        memory.text.toLowerCase().includes(query.toLowerCase())
-    );
+    const queryKeywords = extractKeywords(query);
+    
+    return memories.filter(memory => {
+        if (memory.text.toLowerCase().includes(query.toLowerCase())) return true;
+        
+        const matchingKeywords = memory.tags.filter(tag => 
+            queryKeywords.some(keyword => tag.includes(keyword))
+        );
+        return matchingKeywords.length > 0;
+    });
 }
 
 function updateRecentMemories() {
@@ -218,10 +231,31 @@ function updateRecentMemories() {
     });
 }
 
+function listAllMemories() {
+    let memories = JSON.parse(localStorage.getItem('memories') || '[]');
+    if (memories.length === 0) {
+        return "You don't have any stored memories yet.";
+    }
+    
+    let response = "Here are your recent memories: ";
+    memories.slice(0, 5).forEach((memory, index) => {
+        response += `${index + 1}: ${memory.text}. `;
+    });
+    return response;
+}
+
 function processCommand(text) {
     text = text.toLowerCase().trim();
     
-    // Check store commands
+    for (let cmd of LIST_COMMANDS) {
+        if (text.includes(cmd)) {
+            return {
+                type: 'list',
+                content: ''
+            };
+        }
+    }
+    
     for (let cmd of STORE_COMMANDS) {
         if (text.startsWith(cmd)) {
             return {
@@ -231,7 +265,6 @@ function processCommand(text) {
         }
     }
     
-    // Check recall commands
     for (let cmd of RECALL_COMMANDS) {
         if (text.startsWith(cmd)) {
             return {
@@ -267,17 +300,22 @@ function handleSpeech(event) {
             const response = `Here's what I found: ${results[0].text}`;
             speak(response);
             statusDiv.textContent = response;
-        } else {
-            const memories = JSON.parse(localStorage.getItem('memories') || '[]');
-            if (memories.length > 0) {
-                speak("I couldn't find anything specific, but here are your recent memories.");
-                statusDiv.textContent = "Showing recent memories...";
-            } else {
-                const response = "I don't have any memories stored yet.";
-                speak(response);
-                statusDiv.textContent = response;
+            
+            if (results.length > 1) {
+                setTimeout(() => {
+                    speak(`I found ${results.length - 1} more related memories. Would you like to hear them?`);
+                }, 2000);
             }
+        } else {
+            const response = "I couldn't find any memories matching your query. Here are your recent memories: ";
+            speak(response + listAllMemories());
+            statusDiv.textContent = response;
         }
+    }
+    else if (command.type === 'list') {
+        const response = listAllMemories();
+        speak(response);
+        statusDiv.textContent = response;
     }
 }
 
@@ -312,7 +350,6 @@ toggleButton.addEventListener('click', () => {
     }
 });
 
-// Initialize speech capabilities when the page loads
 initializeSpeech();
 updateRecentMemories();
 </script>
