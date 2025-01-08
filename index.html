@@ -97,8 +97,8 @@
   <div class="container">
     <div class="main-content">
       <h1>Remember Bot</h1>
-      <button id="toggleButton">Start Listening</button>
-      <div id="status">Not listening...</div>
+      <button id="toggleButton" disabled>Initializing...</button>
+      <div id="status">Checking speech capabilities...</div>
       <div id="recentMemories">
         <h3>Recent Memories:</h3>
       </div>
@@ -130,20 +130,61 @@ const recentMemoriesDiv = document.getElementById('recentMemories');
 
 let recognition = null;
 let isListening = false;
+let synth = null;
 
 const STORE_COMMANDS = ['remember', 'note', 'save', 'keep', 'store'];
 const RECALL_COMMANDS = ['remind', 'recall', 'find', 'search', 'tell me about', 'what about'];
 
-function initializeSpeechRecognition() {
+// Check for Speech Recognition support
+function checkSpeechRecognition() {
+    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
+        statusDiv.textContent = 'Speech recognition not supported in this browser';
+        return false;
+    }
+    return true;
+}
+
+// Check for Speech Synthesis support
+function checkSpeechSynthesis() {
+    if (!('speechSynthesis' in window)) {
+        statusDiv.textContent = 'Speech synthesis not supported in this browser';
+        return false;
+    }
+    return true;
+}
+
+// Initialize both speech recognition and synthesis
+async function initializeSpeech() {
+    if (!checkSpeechRecognition() || !checkSpeechSynthesis()) {
+        return;
+    }
+
+    synth = window.speechSynthesis;
+    
+    // Wait for voices to load
+    if (synth.getVoices().length === 0) {
+        await new Promise(resolve => {
+            synth.onvoiceschanged = resolve;
+        });
+    }
+
     recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
+
+    // Enable button once everything is ready
+    toggleButton.disabled = false;
+    toggleButton.textContent = 'Start Listening';
+    statusDiv.textContent = 'Ready to listen!';
 }
 
-const synth = window.speechSynthesis;
-
 function speak(text) {
+    if (!synth) return;
+    
+    // Cancel any ongoing speech
+    synth.cancel();
+
     const utterance = new SpeechSynthesisUtterance(text);
     synth.speak(utterance);
 }
@@ -241,9 +282,7 @@ function handleSpeech(event) {
 }
 
 toggleButton.addEventListener('click', () => {
-    if (!recognition) {
-        initializeSpeechRecognition();
-    }
+    if (!recognition) return;
 
     if (!isListening) {
         recognition.start();
@@ -273,6 +312,8 @@ toggleButton.addEventListener('click', () => {
     }
 });
 
+// Initialize speech capabilities when the page loads
+initializeSpeech();
 updateRecentMemories();
 </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
