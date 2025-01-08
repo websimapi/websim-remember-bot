@@ -1,0 +1,200 @@
+<html><head><base href="." />
+<meta charset="UTF-8">
+<title>Remember Bot</title>
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    background: linear-gradient(45deg, #1a1a2e, #16213e);
+    color: #fff;
+  }
+
+  .container {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    max-width: 600px;
+    width: 90%;
+  }
+
+  #toggleButton {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    border: none;
+    border-radius: 25px;
+    background: #4CAF50;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 1rem;
+  }
+
+  #toggleButton.listening {
+    background: #f44336;
+    animation: pulse 2s infinite;
+  }
+
+  #status {
+    margin: 1rem 0;
+    font-size: 1.1rem;
+  }
+
+  #recentMemories {
+    text-align: left;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
+  .memory-item {
+    padding: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Remember Bot</h1>
+    <button id="toggleButton">Start Listening</button>
+    <div id="status">Not listening...</div>
+    <div id="recentMemories">
+      <h3>Recent Memories:</h3>
+    </div>
+  </div>
+
+<script>
+const toggleButton = document.getElementById('toggleButton');
+const statusDiv = document.getElementById('status');
+const recentMemoriesDiv = document.getElementById('recentMemories');
+
+let recognition = null;
+let isListening = false;
+
+// Initialize speech recognition
+function initializeSpeechRecognition() {
+    recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+}
+
+// Initialize speech synthesis
+const synth = window.speechSynthesis;
+
+function speak(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    synth.speak(utterance);
+}
+
+function saveMemory(memory) {
+    let memories = JSON.parse(localStorage.getItem('memories') || '[]');
+    memories.unshift({
+        text: memory,
+        timestamp: new Date().toISOString()
+    });
+    localStorage.setItem('memories', JSON.stringify(memories));
+    updateRecentMemories();
+}
+
+function searchMemories(query) {
+    let memories = JSON.parse(localStorage.getItem('memories') || '[]');
+    return memories.filter(memory => 
+        memory.text.toLowerCase().includes(query.toLowerCase())
+    );
+}
+
+function updateRecentMemories() {
+    let memories = JSON.parse(localStorage.getItem('memories') || '[]');
+    recentMemoriesDiv.innerHTML = '<h3>Recent Memories:</h3>';
+    
+    memories.slice(0, 5).forEach(memory => {
+        const div = document.createElement('div');
+        div.className = 'memory-item';
+        div.textContent = `${new Date(memory.timestamp).toLocaleString()}: ${memory.text}`;
+        recentMemoriesDiv.appendChild(div);
+    });
+}
+
+function handleSpeech(event) {
+    const speech = event.results[event.results.length - 1][0].transcript.trim();
+    console.log('Speech detected:', speech);
+
+    if (speech.toLowerCase().startsWith('remember ')) {
+        const memory = speech.slice(9);
+        saveMemory(memory);
+        speak(`I'll remember that ${memory}`);
+        statusDiv.textContent = `Remembered: ${memory}`;
+    }
+    else if (speech.toLowerCase().startsWith('remind ')) {
+        const query = speech.slice(7);
+        const results = searchMemories(query);
+        
+        if (results.length > 0) {
+            const response = `Here's what I found: ${results[0].text}`;
+            speak(response);
+            statusDiv.textContent = response;
+        } else {
+            const memories = JSON.parse(localStorage.getItem('memories') || '[]');
+            const response = memories.length > 0 
+                ? "I couldn't find anything specific, but here are your recent memories."
+                : "I don't have any memories stored yet.";
+            speak(response);
+            statusDiv.textContent = response;
+        }
+    }
+}
+
+toggleButton.addEventListener('click', () => {
+    if (!recognition) {
+        initializeSpeechRecognition();
+    }
+
+    if (!isListening) {
+        recognition.start();
+        isListening = true;
+        toggleButton.textContent = 'Stop Listening';
+        toggleButton.classList.add('listening');
+        statusDiv.textContent = 'Listening...';
+        
+        recognition.onresult = handleSpeech;
+        
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            statusDiv.textContent = `Error: ${event.error}`;
+        };
+
+        recognition.onend = () => {
+            if (isListening) {
+                recognition.start();
+            }
+        };
+    } else {
+        recognition.stop();
+        isListening = false;
+        toggleButton.textContent = 'Start Listening';
+        toggleButton.classList.remove('listening');
+        statusDiv.textContent = 'Not listening...';
+    }
+});
+
+// Initialize recent memories on page load
+updateRecentMemories();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body></html>
